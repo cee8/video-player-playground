@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState, useRef } from 'react';
 import useVideoControls from '../hooks/useVideoControls';
 
 interface VideoPlayerProps {
@@ -7,8 +7,8 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose }) => {
+    const [isPanelOpen, setIsPanelOpen] = useState(true);
     const videoRef = useRef<HTMLVideoElement>(null);
-    const [isControlsVisible, setIsControlsVisible] = useState(true);
     const {
         isPlaying,
         currentTime,
@@ -16,123 +16,115 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose }) => {
         volume,
         togglePlay,
         handleTimeUpdate,
-        handleVolumeChange,
         handleSeek,
+        handleVolumeChange,
     } = useVideoControls(videoRef);
 
-    // Convert local file path to URL
-    const videoUrl = `http://localhost:3000/api/video?path=${encodeURIComponent(src)}`;
-
-    // Format time in MM:SS
-    const formatTime = (time: number) => {
+    const formatTime = (time: number): string => {
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
+    const handleDownload = () => {
+        const link = document.createElement('a');
+        link.href = `/api/video?path=${encodeURIComponent(src)}`;
+        link.download = src.split('/').pop() || 'video';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
-        <div 
-            className="fixed inset-0 bg-black/90 flex items-center justify-center z-50"
-            onMouseMove={() => {
-                setIsControlsVisible(true);
-                // Hide controls after 2 seconds of no mouse movement
-                setTimeout(() => setIsControlsVisible(false), 2000);
-            }}
-        >
-            <div className="relative w-full max-w-5xl aspect-video">
-                {/* Close button */}
-                <button
+        <div className="fixed inset-0 bg-black/90 z-50 flex">
+            {/* Side Panel */}
+            <div className={`bg-gray-900 text-white transition-all duration-300 ease-in-out flex
+                ${isPanelOpen ? 'w-64' : 'w-12'}`}>
+                
+                {/* Toggle Button */}
+                <button 
+                    onClick={() => setIsPanelOpen(!isPanelOpen)}
+                    className="absolute left-2 top-2 p-2 hover:bg-gray-700 rounded-full"
+                >
+                    {isPanelOpen ? '◀' : '▶'}
+                </button>
+
+                {/* Panel Content */}
+                <div className={`flex-1 p-4 mt-12 ${isPanelOpen ? 'block' : 'hidden'}`}>
+                    <h3 className="text-xl font-semibold mb-4">Video Options</h3>
+                    <div className="space-y-4">
+                        <button
+                            onClick={handleDownload}
+                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2"
+                        >
+                            <span>⬇️</span> Download
+                        </button>
+                        
+                        {/* Volume Control */}
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-300">Volume</label>
+                            <div className="flex items-center gap-2">
+                                <span>🔊</span>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.1"
+                                    value={volume}
+                                    onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                                    className="flex-1"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 relative flex items-center justify-center">
+                {/* Close Button */}
+                <button 
                     onClick={onClose}
-                    className="absolute -top-10 right-0 text-white/80 hover:text-white text-xl z-10 
-                             transition-colors duration-200 px-4 py-2 rounded-lg hover:bg-white/10"
+                    className="absolute right-4 top-4 text-white hover:text-gray-300 z-10"
                 >
                     ✕
                 </button>
-                
-                <div className="relative h-full group">
-                    {/* Video element */}
-                    <video
-                        ref={videoRef}
-                        src={videoUrl}
-                        className="w-full h-full object-contain"
-                        onTimeUpdate={handleTimeUpdate}
-                    />
-                    
-                    {/* Play/Pause overlay on video click */}
-                    <div 
-                        className="absolute inset-0 flex items-center justify-center cursor-pointer"
-                        onClick={togglePlay}
-                    >
-                        {!isPlaying && (
-                            <span className="text-white/80 text-6xl opacity-0 group-hover:opacity-100 
-                                         transition-opacity duration-200">
-                                ▶️
-                            </span>
-                        )}
-                    </div>
 
-                    {/* Controls overlay */}
-                    <div 
-                        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent 
-                                  pt-20 pb-4 px-6 transition-opacity duration-300
-                                  ${isControlsVisible ? 'opacity-100' : 'opacity-0'}`}
-                    >
-                        <div className="flex flex-col gap-3">
-                            {/* Progress bar */}
-                            <div className="flex items-center gap-3 text-white/90 text-sm">
-                                <span className="w-16 text-center">{formatTime(currentTime)}</span>
-                                <div className="relative flex-grow h-1 group">
+                {/* Video Container */}
+                <div className="w-full h-full p-8 flex items-center justify-center">
+                    <div className="relative w-full h-full max-w-[90%] max-h-[90%] flex items-center justify-center">
+                        {/* Video Wrapper to maintain aspect ratio */}
+                        <div className="relative w-full h-0 pb-[56.25%]">
+                            <video
+                                ref={videoRef}
+                                src={`/api/video?path=${encodeURIComponent(src)}`}
+                                className="absolute top-0 left-0 w-full h-full object-contain rounded-lg shadow-2xl"
+                                onTimeUpdate={handleTimeUpdate}
+                            />
+                            
+                            {/* Video Controls Overlay */}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                                {/* Progress Bar */}
+                                <div className="flex items-center gap-2 text-white mb-2">
+                                    <span className="text-sm">{formatTime(currentTime)}</span>
                                     <input
                                         type="range"
                                         min="0"
                                         max={duration}
                                         value={currentTime}
                                         onChange={(e) => handleSeek(Number(e.target.value))}
-                                        className="absolute inset-0 w-full appearance-none bg-white/30 rounded-full
-                                                 hover:bg-white/40 transition-all duration-200
-                                                 [&::-webkit-slider-thumb]:appearance-none
-                                                 [&::-webkit-slider-thumb]:w-3
-                                                 [&::-webkit-slider-thumb]:h-3
-                                                 [&::-webkit-slider-thumb]:rounded-full
-                                                 [&::-webkit-slider-thumb]:bg-white
-                                                 [&::-webkit-slider-thumb]:opacity-0
-                                                 hover:[&::-webkit-slider-thumb]:opacity-100"
+                                        className="flex-1"
                                     />
+                                    <span className="text-sm">{formatTime(duration)}</span>
                                 </div>
-                                <span className="w-16 text-center">{formatTime(duration)}</span>
-                            </div>
 
-                            {/* Controls */}
-                            <div className="flex items-center gap-6">
-                                {/* Play/Pause button */}
+                                {/* Play/Pause Button */}
                                 <button
                                     onClick={togglePlay}
-                                    className="text-white/90 hover:text-white text-2xl transition-colors duration-200"
+                                    className="text-white hover:text-gray-300 text-2xl"
                                 >
                                     {isPlaying ? '⏸️' : '▶️'}
                                 </button>
-
-                                {/* Volume control */}
-                                <div className="flex items-center gap-2 group">
-                                    <span className="text-white/90 group-hover:text-white transition-colors duration-200">
-                                        🔊
-                                    </span>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="1"
-                                        step="0.1"
-                                        value={volume}
-                                        onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                                        className="w-0 group-hover:w-20 transition-all duration-200
-                                                 appearance-none bg-white/30 h-1 rounded-full
-                                                 [&::-webkit-slider-thumb]:appearance-none
-                                                 [&::-webkit-slider-thumb]:w-3
-                                                 [&::-webkit-slider-thumb]:h-3
-                                                 [&::-webkit-slider-thumb]:rounded-full
-                                                 [&::-webkit-slider-thumb]:bg-white"
-                                    />
-                                </div>
                             </div>
                         </div>
                     </div>

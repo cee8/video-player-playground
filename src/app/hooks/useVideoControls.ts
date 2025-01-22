@@ -1,6 +1,17 @@
 import { useState, useEffect, RefObject } from 'react';
 
-const useVideoControls = (videoRef: RefObject<HTMLVideoElement | null>) => {
+interface VideoControls {
+    isPlaying: boolean;
+    currentTime: number;
+    duration: number;
+    volume: number;
+    togglePlay: () => void;
+    handleTimeUpdate: () => void;
+    handleSeek: (time: number) => void;
+    handleVolumeChange: (volume: number) => void;
+}
+
+const useVideoControls = (videoRef: RefObject<HTMLVideoElement | null>): VideoControls => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -10,60 +21,54 @@ const useVideoControls = (videoRef: RefObject<HTMLVideoElement | null>) => {
         const video = videoRef.current;
         if (!video) return;
 
-        // Set initial duration when metadata is loaded
-        const handleLoadedMetadata = () => {
-            setDuration(video.duration);
-            setVolume(video.volume);
-        };
-
-        // Update playing state when video plays/pauses
-        const handlePlayPause = () => {
-            setIsPlaying(!video.paused);
-        };
+        // Set initial volume
+        video.volume = volume;
 
         // Add event listeners
+        const handleLoadedMetadata = () => {
+            setDuration(video.duration);
+        };
+
+        const handlePlay = () => setIsPlaying(true);
+        const handlePause = () => setIsPlaying(false);
+
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
-        video.addEventListener('play', handlePlayPause);
-        video.addEventListener('pause', handlePlayPause);
+        video.addEventListener('play', handlePlay);
+        video.addEventListener('pause', handlePause);
 
         // Cleanup
         return () => {
             video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-            video.removeEventListener('play', handlePlayPause);
-            video.removeEventListener('pause', handlePlayPause);
+            video.removeEventListener('play', handlePlay);
+            video.removeEventListener('pause', handlePause);
         };
-    }, [videoRef]);
+    }, [videoRef, volume]);
 
     const togglePlay = () => {
-        const video = videoRef.current;
-        if (!video) return;
-
-        if (video.paused) {
-            video.play();
+        if (!videoRef.current) return;
+        
+        if (isPlaying) {
+            videoRef.current.pause();
         } else {
-            video.pause();
+            videoRef.current.play();
         }
-        setIsPlaying(!video.paused);
     };
 
     const handleTimeUpdate = () => {
-        const video = videoRef.current;
-        if (!video) return;
-        setCurrentTime(video.currentTime);
+        if (!videoRef.current) return;
+        setCurrentTime(videoRef.current.currentTime);
     };
 
-    const handleVolumeChange = (value: number) => {
-        const video = videoRef.current;
-        if (!video) return;
-        video.volume = value;
-        setVolume(value);
+    const handleSeek = (time: number) => {
+        if (!videoRef.current) return;
+        videoRef.current.currentTime = time;
+        setCurrentTime(time);
     };
 
-    const handleSeek = (value: number) => {
-        const video = videoRef.current;
-        if (!video) return;
-        video.currentTime = value;
-        setCurrentTime(value);
+    const handleVolumeChange = (newVolume: number) => {
+        if (!videoRef.current) return;
+        videoRef.current.volume = newVolume;
+        setVolume(newVolume);
     };
 
     return {
@@ -73,8 +78,8 @@ const useVideoControls = (videoRef: RefObject<HTMLVideoElement | null>) => {
         volume,
         togglePlay,
         handleTimeUpdate,
-        handleVolumeChange,
         handleSeek,
+        handleVolumeChange,
     };
 };
 
