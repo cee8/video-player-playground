@@ -190,6 +190,47 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
         return () => clearTimeout(timeout);
     }, [isVisible]);
 
+    // Add state for sidebar width
+    const [sidebarWidth, setSidebarWidth] = useState(256); // 256px = 16rem (w-64)
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartXRef = useRef<number>(0);
+    const initialWidthRef = useRef<number>(0);
+
+    // Handle drag to resize
+    const handleDragStart = (e: React.MouseEvent) => {
+        setIsDragging(true);
+        dragStartXRef.current = e.clientX;
+        initialWidthRef.current = sidebarWidth;
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    };
+
+    useEffect(() => {
+        const handleDrag = (e: MouseEvent) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - dragStartXRef.current;
+            const newWidth = Math.max(48, Math.min(800, initialWidthRef.current + deltaX));
+            setSidebarWidth(newWidth);
+        };
+
+        const handleDragEnd = () => {
+            setIsDragging(false);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleDrag);
+            window.addEventListener('mouseup', handleDragEnd);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleDrag);
+            window.removeEventListener('mouseup', handleDragEnd);
+        };
+    }, [isDragging]);
+
     return (
         <div className={`fixed inset-0 z-50 transition-all duration-400 ease-in-out
             ${isVisible ? 'bg-black/90 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none pointer-events-none'}`}>
@@ -208,26 +249,34 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                     style={styles}
                 >
                     {/* Side Panel */}
-                    <div className={`bg-gray-900 text-white transition-all duration-400 ease-out flex
-                        ${isPanelOpen ? 'w-64' : 'w-12'} ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+                    <div 
+                        className={`bg-gray-900 text-white h-full relative flex
+                            ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+                        style={{ width: `${sidebarWidth}px`, flexShrink: 0 }}
+                    >
+                        {/* Drag Handle */}
+                        <div
+                            className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors"
+                            onMouseDown={handleDragStart}
+                        />
                         
                         {/* Toggle Button */}
                         <button 
-                            onClick={() => setIsPanelOpen(!isPanelOpen)}
+                            onClick={() => setSidebarWidth(sidebarWidth === 48 ? 256 : 48)}
                             className="absolute left-2 top-2 p-2 hover:bg-gray-700 rounded-full transition-colors"
                         >
-                            {isPanelOpen ? '◀' : '▶'}
+                            {sidebarWidth > 48 ? '◀' : '▶'}
                         </button>
 
                         {/* Panel Content */}
-                        <div className={`flex-1 p-4 mt-12 transition-opacity duration-200
-                            ${isPanelOpen ? 'opacity-100' : 'opacity-0'} ${isPanelOpen ? 'block' : 'hidden'}`}>
-                            <h3 className="text-xl font-semibold mb-4">Video Options</h3>
+                        <div className={`flex-1 p-4 mt-12 transition-opacity duration-200 overflow-hidden
+                            ${sidebarWidth > 48 ? 'opacity-100' : 'opacity-0'}`}>
+                            <h3 className="text-xl font-semibold mb-4 whitespace-nowrap">Video Options</h3>
                             <div className="space-y-4">
                                 <button
                                     onClick={handleDownload}
                                     className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-2
-                                             transition-colors duration-200"
+                                             transition-colors duration-200 whitespace-nowrap"
                                 >
                                     <span>⬇️</span> Download
                                 </button>
