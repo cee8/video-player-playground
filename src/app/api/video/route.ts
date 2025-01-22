@@ -12,9 +12,10 @@ export async function GET(request: NextRequest) {
         }
 
         // Get video directory from environment variable
-        const videoDirectory = process.env.VIDEO_DIRECTORY;
+        const videoDirectory = process.env.NEXT_PUBLIC_VIDEO_DIRECTORY;
+
         if (!videoDirectory) {
-            return NextResponse.json({ error: 'Video directory not configured' }, { status: 500 });
+            return NextResponse.json({ error: 'NEXT_PUBLIC_VIDEO_DIRECTORY not configured' }, { status: 500 });
         }
 
         // Create full path and verify it's within video directory

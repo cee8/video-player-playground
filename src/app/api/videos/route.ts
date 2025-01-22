@@ -5,10 +5,10 @@ import path from 'path';
 export async function GET() {
     try {
         // Get video directory from environment variable
-        const videoDirectory = process.env.VIDEO_DIRECTORY;
+        const videoDirectory = process.env.NEXT_PUBLIC_VIDEO_DIRECTORY;
         
         if (!videoDirectory) {
-            throw new Error('VIDEO_DIRECTORY environment variable is not set');
+            throw new Error('NEXT_PUBLIC_VIDEO_DIRECTORY environment variable is not set');
         }
 
         // Read all files in the directory
