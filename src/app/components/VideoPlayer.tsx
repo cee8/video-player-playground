@@ -91,41 +91,38 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose }) => {
                 </button>
 
                 {/* Video Container */}
-                <div className="w-full h-full p-8 flex items-center justify-center">
-                    <div className="relative w-full h-full max-w-[90%] max-h-[90%] flex items-center justify-center">
-                        {/* Video Wrapper to maintain aspect ratio */}
-                        <div className="relative w-full h-0 pb-[56.25%]">
-                            <video
-                                ref={videoRef}
-                                src={`/api/video?path=${encodeURIComponent(src)}`}
-                                className="absolute top-0 left-0 w-full h-full object-contain rounded-lg shadow-2xl"
-                                onTimeUpdate={handleTimeUpdate}
-                            />
-                            
-                            {/* Video Controls Overlay */}
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                                {/* Progress Bar */}
-                                <div className="flex items-center gap-2 text-white mb-2">
-                                    <span className="text-sm">{formatTime(currentTime)}</span>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max={duration}
-                                        value={currentTime}
-                                        onChange={(e) => handleSeek(Number(e.target.value))}
-                                        className="flex-1"
-                                    />
-                                    <span className="text-sm">{formatTime(duration)}</span>
-                                </div>
-
-                                {/* Play/Pause Button */}
-                                <button
-                                    onClick={togglePlay}
-                                    className="text-white hover:text-gray-300 text-2xl"
-                                >
-                                    {isPlaying ? '⏸️' : '▶️'}
-                                </button>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="relative w-full h-full p-4">
+                        <video
+                            ref={videoRef}
+                            src={`/api/video?path=${encodeURIComponent(src)}`}
+                            className="w-full h-full object-contain rounded-lg shadow-2xl"
+                            onTimeUpdate={handleTimeUpdate}
+                        />
+                        
+                        {/* Video Controls Overlay */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                            {/* Progress Bar */}
+                            <div className="flex items-center gap-2 text-white mb-2">
+                                <span className="text-sm">{formatTime(currentTime)}</span>
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max={duration}
+                                    value={currentTime}
+                                    onChange={(e) => handleSeek(Number(e.target.value))}
+                                    className="flex-1"
+                                />
+                                <span className="text-sm">{formatTime(duration)}</span>
                             </div>
+
+                            {/* Play/Pause Button */}
+                            <button
+                                onClick={togglePlay}
+                                className="text-white hover:text-gray-300 text-2xl"
+                            >
+                                {isPlaying ? '⏸️' : '▶️'}
+                            </button>
                         </div>
                     </div>
                 </div>
