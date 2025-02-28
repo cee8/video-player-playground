@@ -12,6 +12,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
     const [isVisible, setIsVisible] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain');
+    const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+    const [aspectRatio, setAspectRatio] = useState<'auto' | '16:9' | '4:3' | '1:1'>('auto');
     const {
         isPlaying,
         currentTime,
@@ -144,12 +147,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
     };
 
     const handleDownload = () => {
+        // Show download options instead of immediately downloading
+        setShowDownloadOptions(true);
+    };
+
+    const handleConfirmDownload = () => {
         const link = document.createElement('a');
-        link.href = `/api/video?path=${encodeURIComponent(src)}`;
+        // Add aspect ratio as a query parameter
+        link.href = `/api/video?path=${encodeURIComponent(src)}&aspectRatio=${aspectRatio}`;
         link.download = src.split('/').pop() || 'video';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        setShowDownloadOptions(false);
     };
 
     // Add handlers for video loading states
@@ -235,6 +245,50 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
         <div className={`fixed inset-0 z-50 transition-all duration-400 ease-in-out
             ${isVisible ? 'bg-black/90 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none pointer-events-none'}`}>
             
+            {/* Download Options Modal */}
+            {showDownloadOptions && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+                    <div className="bg-gray-900 rounded-lg p-6 w-96 space-y-4">
+                        <h3 className="text-xl font-semibold text-white">Download Options</h3>
+                        
+                        {/* Aspect Ratio Control */}
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-300">Aspect Ratio</label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {(['auto', '16:9', '4:3', '1:1'] as const).map((ratio) => (
+                                    <button
+                                        key={ratio}
+                                        onClick={() => setAspectRatio(ratio)}
+                                        className={`px-3 py-1.5 rounded-lg transition-colors duration-200
+                                                  ${aspectRatio === ratio 
+                                                    ? 'bg-blue-600 hover:bg-blue-700' 
+                                                    : 'bg-gray-700 hover:bg-gray-600'}`}
+                                    >
+                                        {ratio}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 pt-4">
+                            <button
+                                onClick={() => setShowDownloadOptions(false)}
+                                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors duration-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDownload}
+                                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors duration-200"
+                            >
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Keyboard Controls Hint 
             <div className={`fixed top-4 left-1/2 -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-lg
                           transition-opacity duration-300 text-sm
@@ -251,7 +305,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                     {/* Side Panel */}
                     <div 
                         className={`bg-gray-900 text-white h-full relative flex
-                            ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+                            ${isVisible ? 'opacity-100' : 'opacity-0'}
+                            ${!isDragging ? 'transition-all duration-300 ease-in-out' : ''}`}
                         style={{ width: `${sidebarWidth}px`, flexShrink: 0 }}
                     >
                         {/* Drag Handle */}
@@ -259,18 +314,24 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                             className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-500 transition-colors"
                             onMouseDown={handleDragStart}
                         />
-                        
+
                         {/* Toggle Button */}
                         <button 
-                            onClick={() => setSidebarWidth(sidebarWidth === 48 ? 256 : 48)}
-                            className="absolute left-2 top-2 p-2 hover:bg-gray-700 rounded-full transition-colors"
+                            onClick={() => {
+                                setIsDragging(false);  // Ensure transitions are enabled for toggle
+                                setSidebarWidth(sidebarWidth === 48 ? 256 : 48);
+                            }}
+                            className={`absolute left-2 top-2 p-2 hover:bg-gray-700 rounded-full 
+                                    transition-all duration-300 ease-in-out
+                                    ${sidebarWidth > 48 ? 'rotate-0' : 'rotate-180'}`}
                         >
-                            {sidebarWidth > 48 ? '◀' : '▶'}
+                            ◀
                         </button>
 
                         {/* Panel Content */}
-                        <div className={`flex-1 p-4 mt-12 transition-opacity duration-200 overflow-hidden
-                            ${sidebarWidth > 48 ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className={`flex-1 p-4 mt-12 overflow-hidden
+                            ${!isDragging ? 'transition-all duration-300 ease-in-out' : ''}
+                            ${sidebarWidth > 48 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'}`}>
                             <h3 className="text-xl font-semibold mb-4 whitespace-nowrap">Video Options</h3>
                             <div className="space-y-4">
                                 <button
@@ -280,7 +341,32 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                                 >
                                     <span>⬇️</span> Download
                                 </button>
-                                
+
+                                {/* Fit Mode Control */}
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-300">Fit Mode</label>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setFitMode('contain')}
+                                            className={`flex-1 px-3 py-1.5 rounded-lg transition-colors duration-200
+                                                      ${fitMode === 'contain' 
+                                                        ? 'bg-blue-600 hover:bg-blue-700' 
+                                                        : 'bg-gray-700 hover:bg-gray-600'}`}
+                                        >
+                                            Contain
+                                        </button>
+                                        <button
+                                            onClick={() => setFitMode('cover')}
+                                            className={`flex-1 px-3 py-1.5 rounded-lg transition-colors duration-200
+                                                      ${fitMode === 'cover' 
+                                                        ? 'bg-blue-600 hover:bg-blue-700' 
+                                                        : 'bg-gray-700 hover:bg-gray-600'}`}
+                                        >
+                                            Cover
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {/* Volume Control */}
                                 <div className="space-y-2">
                                     <label className="text-sm text-gray-300">Volume</label>
@@ -325,7 +411,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                                 <video
                                     ref={videoRef}
                                     src={`/api/video?path=${encodeURIComponent(src)}`}
-                                    className={`w-full h-full object-contain rounded-lg shadow-2xl
+                                    className={`w-full h-full rounded-lg shadow-2xl
                                               ${isVisible ? 'opacity-100' : 'opacity-0'}`}
                                     onLoadedData={handleVideoLoad}
                                     onError={handleVideoError}
@@ -333,7 +419,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                                     playsInline
                                     style={{
                                         visibility: isVisible ? 'visible' : 'hidden',
-                                        display: 'block'
+                                        display: 'block',
+                                        objectFit: fitMode,
+                                        aspectRatio: aspectRatio === 'auto' ? 'auto' : aspectRatio.replace(':', '/'),
                                     }}
                                 />
                                 
