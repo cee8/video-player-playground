@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useVideoControls from '../hooks/useVideoControls';
+import dashjs from 'dashjs';
+import BitrateMetrics from './BitrateMetrics';
 
 interface VideoPlayerProps {
     src: string;
@@ -11,10 +13,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
     const [isPanelOpen, setIsPanelOpen] = useState(true);
     const [isVisible, setIsVisible] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const dashPlayerRef = useRef<dashjs.MediaPlayerClass | null>(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain');
     const [showDownloadOptions, setShowDownloadOptions] = useState(false);
     const [aspectRatio, setAspectRatio] = useState<'auto' | '16:9' | '4:3' | '1:1'>('auto');
+    const [isAdaptiveEnabled, setIsAdaptiveEnabled] = useState(false);
+    const [showMetrics, setShowMetrics] = useState(false);
+    const [bitrateMetrics, setBitrateMetrics] = useState({
+        currentBitrate: 0,
+        averageBitrate: 0,
+        bufferLength: 0,
+        downloadSpeed: 0
+    });
     const {
         isPlaying,
         currentTime,
@@ -241,6 +252,86 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
         };
     }, [isDragging]);
 
+    // Initialize or destroy dash.js player
+    useEffect(() => {
+        if (!videoRef.current || !isAdaptiveEnabled) {
+            if (dashPlayerRef.current) {
+                dashPlayerRef.current.destroy();
+                dashPlayerRef.current = null;
+            }
+            return;
+        }
+
+        // Initialize dash.js player
+        dashPlayerRef.current = dashjs.MediaPlayer().create();
+        dashPlayerRef.current.initialize(videoRef.current, src, false);
+        dashPlayerRef.current.updateSettings({
+            'streaming': {
+                'abr': {
+                    'autoSwitchBitrate': { video: true, audio: true }
+                },
+                'buffer': {
+                    'fastSwitchEnabled': true
+                },
+                'liveCatchup': {
+                    'maxDrift': 0
+                }
+            }
+        });
+
+        // Wait for the player to be ready
+        dashPlayerRef.current.on(dashjs.MediaPlayer.events.PLAYBACK_METADATA_LOADED, () => {
+            console.log('DASH.js player ready');
+            setIsLoaded(true);
+        });
+
+        // Handle errors
+        dashPlayerRef.current.on(dashjs.MediaPlayer.events.ERROR, (error: any) => {
+            console.error('DASH.js player error:', error);
+            handleVideoError(error);
+        });
+
+        dashPlayerRef.current.play();
+
+        // Set up metrics update interval
+        const metricsInterval = setInterval(() => {
+            if (dashPlayerRef.current) {
+                try {
+                    const bitrateList = dashPlayerRef.current.getBitrateInfoListFor("video");
+                    const currentQuality = dashPlayerRef.current.getQualityFor("video");
+                    
+                    // Only update metrics if we have valid bitrate information
+                    if (bitrateList && bitrateList.length > 0 && currentQuality !== undefined && currentQuality >= 0) {
+                        const metrics = {
+                            currentBitrate: bitrateList[currentQuality].bitrate,
+                            averageBitrate: dashPlayerRef.current.getAverageThroughput("video") || 0,
+                            bufferLength: dashPlayerRef.current.getBufferLength("video") || 0,
+                            downloadSpeed: dashPlayerRef.current.getAverageThroughput("video") || 0
+                        };
+                        setBitrateMetrics(metrics);
+                    }
+                } catch (error) {
+                    console.warn('Failed to update bitrate metrics:', error);
+                    // Set default values when metrics are unavailable
+                    setBitrateMetrics({
+                        currentBitrate: 0,
+                        averageBitrate: 0,
+                        bufferLength: 0,
+                        downloadSpeed: 0
+                    });
+                }
+            }
+        }, 1000);
+
+        return () => {
+            clearInterval(metricsInterval);
+            if (dashPlayerRef.current) {
+                dashPlayerRef.current.destroy();
+                dashPlayerRef.current = null;
+            }
+        };
+    }, [src, isAdaptiveEnabled]);
+
     return (
         <div className={`fixed inset-0 z-50 transition-all duration-400 ease-in-out
             ${isVisible ? 'bg-black/90 backdrop-blur-sm' : 'bg-black/0 backdrop-blur-none pointer-events-none'}`}>
@@ -342,6 +433,36 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                                     <span>⬇️</span> Download
                                 </button>
 
+                                {/* Adaptive Streaming Toggle */}
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-300">Streaming Mode</label>
+                                    <button
+                                        onClick={() => setIsAdaptiveEnabled(!isAdaptiveEnabled)}
+                                        className={`w-full px-4 py-2 rounded-lg flex items-center gap-2
+                                                 transition-colors duration-200 whitespace-nowrap
+                                                 ${isAdaptiveEnabled ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                    >
+                                        <span>{isAdaptiveEnabled ? '📊' : '📺'}</span>
+                                        {isAdaptiveEnabled ? 'Adaptive Streaming' : 'Regular Playback'}
+                                    </button>
+                                </div>
+
+                                {/* Show Metrics Toggle */}
+                                {isAdaptiveEnabled && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-gray-300">Streaming Metrics</label>
+                                        <button
+                                            onClick={() => setShowMetrics(!showMetrics)}
+                                            className={`w-full px-4 py-2 rounded-lg flex items-center gap-2
+                                                     transition-colors duration-200 whitespace-nowrap
+                                                     ${showMetrics ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                        >
+                                            <span>{showMetrics ? '📈' : '📉'}</span>
+                                            {showMetrics ? 'Hide Metrics' : 'Show Metrics'}
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* Fit Mode Control */}
                                 <div className="space-y-2">
                                     <label className="text-sm text-gray-300">Fit Mode</label>
@@ -401,6 +522,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                         {/* Video Container */}
                         <div className="absolute inset-0 flex items-center justify-center">
                             <div className="relative w-full h-full p-4">
+                                {/* Bitrate Metrics */}
+                                <BitrateMetrics
+                                    {...bitrateMetrics}
+                                    isVisible={showMetrics && isAdaptiveEnabled}
+                                />
+
                                 {/* Loading Indicator */}
                                 {!isLoaded && isVisible && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
@@ -410,11 +537,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ src, onClose, startPosition }
                                 
                                 <video
                                     ref={videoRef}
-                                    src={`/api/video?path=${encodeURIComponent(src)}`}
+                                    src={isAdaptiveEnabled ? undefined : `/api/video?path=${encodeURIComponent(src)}`}
                                     className={`w-full h-full rounded-lg shadow-2xl
                                               ${isVisible ? 'opacity-100' : 'opacity-0'}`}
-                                    onLoadedData={handleVideoLoad}
-                                    onError={handleVideoError}
+                                    onLoadedData={!isAdaptiveEnabled ? handleVideoLoad : undefined}
+                                    onError={!isAdaptiveEnabled ? handleVideoError : undefined}
                                     onTimeUpdate={handleTimeUpdate}
                                     playsInline
                                     style={{
